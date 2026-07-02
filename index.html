@@ -56,7 +56,11 @@ main{flex:1;overflow:hidden;position:relative}
 .card.dragging{opacity:.4}
 .card .cover{height:36px}
 .card .cover.img{height:110px;background-size:cover;background-position:center}
-.card-body{padding:8px 10px}
+.card-body{padding:8px 10px;position:relative}
+.cardcheck{position:absolute;top:6px;right:6px;width:22px;height:22px;padding:0;border-radius:50%;border:2px solid #c1c7d0;background:#fff;color:#fff;font-size:13px;font-weight:800;line-height:1;display:flex;align-items:center;justify-content:center}
+.cardcheck:hover{border-color:var(--ok);background:#eafaef}
+.cardcheck.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.card-body .card-title{padding-right:26px}
 .labels{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
 .lbl{height:8px;min-width:38px;border-radius:5px}
 .lbl.txt{height:auto;padding:1px 8px;color:#0d1a33;font-size:11px;font-weight:700;line-height:16px}
@@ -76,7 +80,11 @@ main{flex:1;overflow:hidden;position:relative}
 
 /* Modal */
 .overlay{position:fixed;inset:0;background:rgba(9,30,66,.54);display:flex;justify-content:center;align-items:flex-start;padding:40px 16px;overflow:auto;z-index:50}
-.modal{background:#f4f5f7;border-radius:14px;width:100%;max-width:770px;box-shadow:0 8px 30px rgba(0,0,0,.3);overflow:hidden}
+.modal{background:#f4f5f7;border-radius:14px;width:100%;max-width:770px;box-shadow:0 8px 30px rgba(0,0,0,.3);overflow:hidden;position:relative}
+.card.fileover{outline:2px dashed var(--brand);outline-offset:2px;box-shadow:0 0 0 3px rgba(99,95,199,.25)}
+.modal.dragfile{outline:3px dashed var(--brand);outline-offset:-8px}
+.drophint{display:none}
+.modal.dragfile .drophint{display:flex;position:absolute;inset:0;z-index:8;align-items:center;justify-content:center;background:rgba(99,95,199,.16);color:var(--brand);font-weight:800;font-size:18px;border-radius:14px;pointer-events:none}
 .modal-cover{height:120px;background-size:cover;background-position:center;position:relative}
 .modal-cover .x{position:absolute;top:10px;right:10px}
 .modal-inner{display:grid;grid-template-columns:1fr 190px;gap:18px;padding:18px 20px 24px}
@@ -144,6 +152,14 @@ main{flex:1;overflow:hidden;position:relative}
 label.field{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px;font-weight:600}
 .flex{display:flex;gap:8px;align-items:center}
 .wrap{display:flex;flex-wrap:wrap;gap:6px}
+/* Descripción + menciones */
+.desc-view{background:#fff;border:2px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;line-height:1.5;cursor:text;min-height:40px;white-space:pre-wrap;word-break:break-word}
+.desc-view:hover{border-color:#c1c7d0}
+.desc-view.empty{color:var(--muted)}
+.mention{background:#eae9ff;color:#524fb0;border-radius:5px;padding:1px 5px;font-weight:700;font-size:.92em}
+.mentionpop{position:absolute;left:8px;top:100%;margin-top:-4px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:70;min-width:200px;max-height:190px;overflow:auto}
+.mention-opt{padding:8px 12px;font-size:13px;cursor:pointer}
+.mention-opt:hover{background:#eae9ff;color:#524fb0}
 /* Auth */
 body.locked{overflow:hidden}
 .auth-wrap{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#3b3a72,#635fc7)}
@@ -160,7 +176,7 @@ body.locked{overflow:hidden}
 <header>
   <div class="logo"><span class="dot"></span> TableroPro</div>
   <select id="boardSelect" onchange="selectBoard(this.value)"></select>
-  <button onclick="newBoard()">+ Tablero</button>
+  <button onclick="newBoardMenu(event)">+ Tablero</button>
   <div class="viewtabs" id="viewtabs">
     <button data-view="board" class="active" onclick="setView('board')">Tablero</button>
     <button data-view="calendar" onclick="setView('calendar')">Calendario</button>
@@ -175,7 +191,7 @@ body.locked{overflow:hidden}
   <input type="file" id="importFile" accept="application/json" class="hidden" onchange="importJSON(event)">
   <span id="userArea" style="display:none;align-items:center;gap:8px;margin-left:6px">
     <span id="userChip" style="font-size:13px;opacity:.9"></span>
-    <button onclick="logout()">Salir</button>
+    <button id="logoutBtn" onclick="logout()">Salir</button>
   </span>
 </header>
 <main>
@@ -196,8 +212,9 @@ body.locked{overflow:hidden}
 // Habla con el backend (/api/state). Auth por cookie de sesión.
 // Guardado con debounce + control de versión (rev) para tablero compartido.
 let currentUser = null;
+let members = [];   // emails de usuarios registrados (para @menciones)
 const Store = {
-  rev: 0, _t: null, _saving: false, _again: false,
+  rev: 0, _t: null, _saving: false, _again: false, local: false,
   async loadRemote(){
     const r = await fetch('/api/state');
     if(r.status===401) return {auth:false};
@@ -205,6 +222,7 @@ const Store = {
   },
   save(){ clearTimeout(this._t); this._t = setTimeout(()=>Store._push(), 350); },
   async _push(){
+    if(this.local){ try{ localStorage.setItem('tableropro_local', JSON.stringify(state)); }catch(e){ toast('⚠︎ Almacenamiento local lleno'); } return; }
     if(this._saving){ this._again=true; return; }
     this._saving=true;
     try{
@@ -234,7 +252,24 @@ const BOARD_BGS = [
   'linear-gradient(135deg,#0082c8,#667db6)',
   'linear-gradient(135deg,#f7971e,#ffd200)',
   'linear-gradient(135deg,#134e5e,#71b280)',
-  'linear-gradient(135deg,#ee0979,#ff6a00)'
+  'linear-gradient(135deg,#ee0979,#ff6a00)',
+  'linear-gradient(135deg,#667eea,#764ba2)',
+  'linear-gradient(135deg,#f093fb,#f5576c)',
+  'linear-gradient(135deg,#4facfe,#00f2fe)',
+  'linear-gradient(135deg,#43e97b,#38f9d7)',
+  'linear-gradient(135deg,#fa709a,#fee140)',
+  'linear-gradient(135deg,#30cfd0,#330867)',
+  'linear-gradient(135deg,#c471f5,#fa71cd)',
+  'linear-gradient(135deg,#f83600,#f9d423)',
+  'linear-gradient(135deg,#1a2980,#26d0ce)',
+  'linear-gradient(135deg,#8360c3,#2ebf91)',
+  'linear-gradient(135deg,#ff5f6d,#ffc371)',
+  'linear-gradient(135deg,#3a1c71,#d76d77,#ffaf7b)',
+  'linear-gradient(135deg,#00c6ff,#0072ff)',
+  'linear-gradient(120deg,#a1c4fd,#c2e9fb)',
+  'radial-gradient(at 15% 20%,#f857a6 0px,transparent 50%),radial-gradient(at 85% 10%,#5f72bd 0px,transparent 50%),radial-gradient(at 20% 90%,#43cea2 0px,transparent 50%),#2d2a5a',
+  'radial-gradient(at 0% 0%,#ff6b6b 0px,transparent 50%),radial-gradient(at 100% 0%,#ffd93b 0px,transparent 50%),radial-gradient(at 100% 100%,#6bcb77 0px,transparent 50%),radial-gradient(at 0% 100%,#4d96ff 0px,transparent 50%),#1a1a2e',
+  'radial-gradient(at 80% 20%,#7028e4 0px,transparent 50%),radial-gradient(at 20% 80%,#e5b2ca 0px,transparent 50%),#0f0c29'
 ];
 const LABEL_COLORS = ['#61bd4f','#f2d600','#ff9f1a','#eb5a46','#c377e0','#0079bf','#00c2e0','#51e898','#ff78cb','#344563'];
 const PRIO = {none:{c:'#c1c7d0',t:'Sin prioridad'},low:{c:'#61bd4f',t:'Baja'},med:{c:'#f2d600',t:'Media'},high:{c:'#ff9f1a',t:'Alta'},urgent:{c:'#eb5a46',t:'Urgente'}};
@@ -338,13 +373,31 @@ function checkRecurring(){
   return created;
 }
 
+/* ============================ Tablero semanal ============================ */
+// Clave de semana (lunes como inicio). Cambia cada lunes.
+function currentWeekKey(){ const [y,m,d]=todayISO().split('-').map(Number); return weekIndex(new Date(Date.UTC(y,m-1,d))); }
+// Al empezar una semana nueva, las tarjetas marcadas "repeatWeekly" se reponen:
+// se des-archivan, se destildan y se reinician sus checklists. Corre al abrir la app.
+function replenishWeekly(){
+  const wk=currentWeekKey(); let changed=false;
+  state.boards.forEach(b=>{
+    if(!b.weekly) return;
+    if(b.lastWeek===wk) return;          // ya se repuso esta semana
+    b.lastWeek=wk;
+    b.lists.forEach(l=>l.cards.forEach(c=>{
+      if(c.repeatWeekly){ c.archived=false; c.completed=false; c.checklists.forEach(cl=>cl.items.forEach(it=>it.done=false)); changed=true; }
+    }));
+  });
+  if(changed){ persist(); toast('🗓️ Nueva semana: tareas repuestas'); }
+}
+
 /* ============================ Automation ============================ */
 const AUTO_TRIGGERS={moved_to_done:'Al mover a una lista "Hecho/Done"',due_today:'Cuando vence hoy'};
 const AUTO_ACTIONS={mark_complete:'Marcar como completada',add_label_done:'Agregar etiqueta "Listo"',set_urgent:'Marcar prioridad Urgente'};
 function runAutomations(card,list,eventType){
   const b=board();
   b.automations.filter(a=>a.enabled&&a.trigger===eventType).forEach(a=>{
-    if(a.action==='mark_complete'){ card.completed=true; }
+    if(a.action==='mark_complete'){ card.completed=true; if(board().weekly) card.archived=true; }
     if(a.action==='add_label_done'){ let l=b.labels.find(x=>/listo|done/i.test(x.name)); if(l&&!card.labels.includes(l.id)) card.labels.push(l.id); }
     if(a.action==='set_urgent'){ card.priority='urgent'; }
   });
@@ -431,14 +484,17 @@ function cardHTML(c,listId){
   if(c.due){ const dd=daysBetween(todayISO(),c.due); let cls=c.completed?'done':dd<0?'over':dd<=2?'soon':''; const p=c.due.split('-'); badges.push(`<span class="badge due ${cls}">🕑 ${+p[2]}/${+p[1]}${c.completed?' ✓':''}</span>`); }
   if(checks.t) badges.push(`<span class="badge">☑ ${checks.d}/${checks.t}</span>`);
   if(c.recurrence) badges.push(`<span class="badge">🔁</span>`);
+  if(c.repeatWeekly) badges.push(`<span class="badge" style="color:#524fb0">🗓️ semanal</span>`);
   if(c.images.length) badges.push(`<span class="badge">🖼 ${c.images.length}</span>`);
   if(c.desc) badges.push(`<span class="badge">≡</span>`);
+  const mts=(c.desc||'').match(/@[^\s@]+(?:@[^\s@]+\.[^\s@]+)?/g); if(mts) badges.push(`<span class="badge" style="color:#524fb0">@${mts.length}</span>`);
   const assignee=(()=>{const f=b.customFields.find(x=>/responsable/i.test(x.name));return f&&c.cf[f.id]?`<span class="chip">${esc(c.cf[f.id])}</span>`:''})();
-  return `<div class="card" draggable="true" data-card="${c.id}" data-list="${listId}" onclick="openCard('${c.id}')">
+  return `<div class="card" draggable="true" data-card="${c.id}" data-list="${listId}" onclick="openCard('${c.id}')" ondragover="cardFileOver(event)" ondragleave="cardFileLeave(event)" ondrop="cardFileDrop(event,'${c.id}')">
     ${cover}
     <div class="card-body">
+      <button class="cardcheck ${c.completed?'on':''}" onclick="event.stopPropagation();completeCard('${c.id}')" title="Completar">${c.completed?'✓':''}</button>
       ${labels?`<div class="labels">${labels}</div>`:''}
-      <div class="card-title">${c.completed?'✅ ':''}${esc(c.title)}</div>
+      <div class="card-title">${esc(c.title)}</div>
       <div class="badges">${c.priority!=='none'?`<span class="prio" style="background:${PRIO[c.priority].c}" title="${PRIO[c.priority].t}"></span>`:''}${badges.join('')}${assignee}</div>
     </div>
   </div>`;
@@ -491,9 +547,39 @@ function commitMove(zone){
 }
 
 /* ============================ MODAL TARJETA ============================ */
-function openCard(id){ ui.openCard=id; renderModal(); }
+function openCard(id){ ui.openCard=id; ui.editingDesc=false; renderModal(); }
 function findCard(id){ const b=board(); for(const l of b.lists){const c=l.cards.find(x=>x.id===id); if(c)return{card:c,list:l};} return null; }
-function closeModal(){ ui.openCard=null; $('#modalRoot').innerHTML=''; render(); }
+function closeModal(){ ui.openCard=null; ui.editingDesc=false; $('#modalRoot').innerHTML=''; render(); }
+
+/* ---- Descripción con @menciones ---- */
+function renderDesc(text){
+  return esc(text).replace(/@[^\s@]+(?:@[^\s@]+\.[^\s@]+)?/g, m=>`<span class="mention">${m}</span>`).replace(/\n/g,'<br>');
+}
+function editDesc(){ ui.editingDesc=true; renderModal(); }
+function saveDesc(){ const ta=$('#descBox'); const f=findCard(ui.openCard); if(ta&&f){ f.card.desc=ta.value; persist(); } ui.editingDesc=false; renderModal(); }
+function initDescEditor(){
+  const ta=$('#descBox'); if(!ta) return;
+  ta.focus(); ta.setSelectionRange(ta.value.length,ta.value.length);
+  ta.addEventListener('input',onDescInput);
+  ta.addEventListener('blur',()=>setTimeout(()=>{ if(ui.editingDesc && document.activeElement!==ta && !(document.activeElement&&document.activeElement.classList&&document.activeElement.classList.contains('mention-opt'))) saveDesc(); },180));
+}
+function onDescInput(e){
+  const ta=e.target, pos=ta.selectionStart, upto=ta.value.slice(0,pos);
+  const m=upto.match(/@([^\s@]*)$/); const pop=$('#mentionPop');
+  if(m && members.length){
+    const q=m[1].toLowerCase();
+    const matches=members.filter(u=>u.toLowerCase().includes(q)).slice(0,6);
+    if(matches.length){ pop.innerHTML=matches.map(u=>`<div class="mention-opt" onmousedown="pickMention(event,'${u}')">@${esc(u)}</div>`).join(''); pop.classList.remove('hidden'); return; }
+  }
+  pop.classList.add('hidden');
+}
+function pickMention(ev,email){
+  ev.preventDefault();
+  const ta=$('#descBox'), pos=ta.selectionStart, before=ta.value.slice(0,pos), after=ta.value.slice(pos);
+  const nb=before.replace(/@([^\s@]*)$/, '@'+email+' ');
+  ta.value=nb+after; const np=nb.length; ta.setSelectionRange(np,np);
+  $('#mentionPop').classList.add('hidden'); ta.focus();
+}
 
 function renderModal(){
   const found=findCard(ui.openCard); if(!found){closeModal();return;}
@@ -519,7 +605,8 @@ function renderModal(){
   const gallery=c.images.map((src,i)=>`<img src="${src}" class="${c.cover&&c.cover.value===src?'cover':''}" onclick="setCover({type:'img',value:'${src}'})" title="Click = portada"><button class="mini ghost" onclick="delImage(${i})" style="margin-left:-14px">✕</button>`).join('');
 
   $('#modalRoot').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal">
+    <div class="modal" id="cardModal" ondragover="modalFileOver(event)" ondragleave="modalFileLeave(event)" ondrop="modalFileDrop(event)">
+      <div class="drophint">Soltá las imágenes para adjuntarlas 🖼</div>
       ${coverHTML}
       <div class="modal-inner">
         <div class="content">
@@ -533,7 +620,11 @@ function renderModal(){
 
           <div class="section">
             <h4>Descripción</h4>
-            <textarea onchange="setField('desc',this.value)" placeholder="Agregá una descripción más detallada...">${esc(c.desc)}</textarea>
+            ${ui.editingDesc
+              ? `<div style="position:relative"><textarea id="descBox" placeholder="Escribí una descripción… usá @ para mencionar">${esc(c.desc)}</textarea><div id="mentionPop" class="mentionpop hidden"></div></div>
+                 <div style="margin-top:6px"><button class="mini primary" onmousedown="event.preventDefault()" onclick="saveDesc()">Guardar</button></div>`
+              : (c.desc ? `<div class="desc-view" onclick="editDesc()">${renderDesc(c.desc)}</div>`
+                        : `<div class="desc-view empty" onclick="editDesc()">Agregá una descripción… (usá @ para mencionar)</div>`)}
           </div>
 
           <div class="section">
@@ -552,6 +643,7 @@ function renderModal(){
         <div class="sidebar">
           <h4>Acciones</h4>
           <button onclick="toggleComplete()">${c.completed?'↩︎ Reabrir':'✓ Completar'}</button>
+          <button onclick="toggleRepeatWeekly()" title="Se repone cada lunes en su columna">🗓️ ${c.repeatWeekly?'Semanal: activada':'Repetir cada semana'}</button>
           <button onclick="pickPriority(event)"><span class="prio" style="background:${PRIO[c.priority].c}"></span> ${PRIO[c.priority].t}</button>
           <button onclick="pickDue(event)">🕑 ${c.due?('Vence '+c.due):'Fecha límite'}</button>
           <button onclick="pickStart(event)">▶ ${c.start?('Inicio '+c.start):'Fecha inicio'}</button>
@@ -566,6 +658,7 @@ function renderModal(){
         </div>
       </div>
     </div></div>`;
+  if(ui.editingDesc) setTimeout(initDescEditor,0);
 }
 function recurrenceLabel(r){
   if(r.freq==='weekly'&&r.weekdays&&r.weekdays.length){ const names=WD_ORDER.filter(w=>r.weekdays.includes(w)).map(w=>WD_NAMES[w]).join(','); return (r.interval>1?`c/${r.interval}sem `:'')+names; }
@@ -585,19 +678,42 @@ function addCheckItem(clId){ const t=prompt('Nuevo ítem:'); if(!t)return; mutat
 function toggleCheck(clId,iId){ mutate((c,l)=>{ const it=c.checklists.find(x=>x.id===clId).items.find(y=>y.id===iId); it.done=!it.done;
   // auto-completar si todos los ítems están hechos
   const all=c.checklists.length&&c.checklists.every(cl=>cl.items.length&&cl.items.every(i=>i.done));
-  if(all&&!c.completed){ if(confirm('Todos los ítems completos. ¿Marcar tarjeta como completada?')){ c.completed=true; } }
+  if(all&&!c.completed){ if(confirm('Todos los ítems completos. ¿Marcar tarjeta como completada?')){ c.completed=true; if(board().weekly) c.archived=true; } }
 }); }
 function delCheckItem(clId,iId){ mutate(c=>{const cl=c.checklists.find(x=>x.id===clId); cl.items=cl.items.filter(y=>y.id!==iId);}); }
-function toggleComplete(){ mutate((c,l)=>{ c.completed=!c.completed; }); }
+function toggleComplete(){
+  const f=findCard(ui.openCard); if(!f)return; const c=f.card;
+  c.completed=!c.completed;
+  if(c.completed && board().weekly){ c.archived=true; persist(); toast('✅ Completada y archivada'); closeModal(); return; }
+  persist(); renderModal();
+}
+function completeCard(id){
+  const f=findCard(id); if(!f)return; const c=f.card;
+  c.completed=!c.completed;
+  if(c.completed && board().weekly){ c.archived=true; toast('✅ Completada y archivada'); }
+  persist(); render();
+}
+function toggleRepeatWeekly(){ mutate(c=>c.repeatWeekly=!c.repeatWeekly); }
 function toggleArchive(){ mutate(c=>c.archived=!c.archived); toast('Tarjeta archivada'); closeModal(); }
 function duplicateCard(){ const f=findCard(ui.openCard); const cl=JSON.parse(JSON.stringify(f.card)); cl.id=uid(); cl.title+=' (copia)'; f.list.cards.push(cl); persist(); toast('Tarjeta duplicada'); }
 function deleteCard(){ if(!confirm('¿Eliminar tarjeta?'))return; const f=findCard(ui.openCard); f.list.cards=f.list.cards.filter(c=>c.id!==ui.openCard); persist(); closeModal(); }
 
-function uploadImages(e){
-  const files=[...e.target.files]; let pending=files.length;
-  files.forEach(file=>{ const r=new FileReader(); r.onload=()=>{ mutateNoRender(c=>{ c.images.push(r.result); if(!c.cover) c.cover={type:'img',value:r.result}; }); if(--pending===0){persist();renderModal();} }; r.readAsDataURL(file); });
+// Lee archivos de imagen y los adjunta a la tarjeta (cover si no tiene).
+function attachImages(fileList, card, after){
+  const imgs=[...fileList].filter(f=>f.type&&f.type.startsWith('image/'));
+  if(!imgs.length){ toast('Soltá archivos de imagen'); return; }
+  let pending=imgs.length;
+  imgs.forEach(file=>{ const r=new FileReader(); r.onload=()=>{ card.images.push(r.result); if(!card.cover) card.cover={type:'img',value:r.result}; if(--pending===0){ persist(); if(after) after(); } }; r.readAsDataURL(file); });
 }
-function mutateNoRender(fn){ const f=findCard(ui.openCard); if(f) fn(f.card,f.list); }
+function uploadImages(e){ const f=findCard(ui.openCard); if(f) attachImages(e.target.files, f.card, ()=>renderModal()); }
+// Drag & drop de imágenes (tipo Trello)
+function isFileDrag(e){ return !!(e.dataTransfer && [...(e.dataTransfer.types||[])].includes('Files')); }
+function cardFileOver(e){ if(!isFileDrag(e))return; e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('fileover'); }
+function cardFileLeave(e){ e.currentTarget.classList.remove('fileover'); }
+function cardFileDrop(e,id){ if(!isFileDrag(e))return; e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('fileover'); const n=e.dataTransfer.files.length; const f=findCard(id); if(f) attachImages(e.dataTransfer.files, f.card, ()=>{ toast('🖼 '+n+' imagen(es) adjuntada(s)'); render(); }); }
+function modalFileOver(e){ if(!isFileDrag(e))return; e.preventDefault(); e.currentTarget.classList.add('dragfile'); }
+function modalFileLeave(e){ if(!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('dragfile'); }
+function modalFileDrop(e){ if(!isFileDrag(e))return; e.preventDefault(); e.currentTarget.classList.remove('dragfile'); const f=findCard(ui.openCard); if(f) attachImages(e.dataTransfer.files, f.card, ()=>renderModal()); }
 function delImage(i){ mutate(c=>{ const src=c.images[i]; c.images.splice(i,1); if(c.cover&&c.cover.value===src) c.cover=null; }); }
 
 /* ---- Popovers ---- */
@@ -701,20 +817,41 @@ function delAuto(id){ board().automations=board().automations.filter(x=>x.id!==i
 
 /* ============================ CALENDARIO ============================ */
 let calMonth=new Date().getMonth(), calYear=new Date().getFullYear();
+const CAL_WD={'lunes':1,'martes':2,'miercoles':3,'miércoles':3,'jueves':4,'viernes':5,'sabado':6,'sábado':6,'domingo':0};
 function renderCalendar(root){
   const b=board(); const first=new Date(calYear,calMonth,1); const startDow=(first.getDay()+6)%7;
   const days=new Date(calYear,calMonth+1,0).getDate();
   const monthName=first.toLocaleDateString('es',{month:'long',year:'numeric'});
-  const cardsByDate={}; b.lists.forEach(l=>l.cards.forEach(c=>{ if(c.due&&!c.archived){ (cardsByDate[c.due]=cardsByDate[c.due]||[]).push(c); }}));
+  const curWeek=currentWeekKey();
+  const isoOf=d=>`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const wkOf=iso=>{const [y,m,dd]=iso.split('-').map(Number);return weekIndex(new Date(Date.UTC(y,m-1,dd)));};
+  const dowOf=iso=>{const [y,m,dd]=iso.split('-').map(Number);return new Date(Date.UTC(y,m-1,dd)).getUTCDay();};
+  // Junta las tarjetas que caen en cada fecha: por fecha de vencimiento (due) y,
+  // en tableros semanales, por el día de la columna donde está la tarjeta.
+  function cellCards(iso){
+    const res=[]; const dow=dowOf(iso), wk=wkOf(iso);
+    b.lists.forEach(l=>{
+      const wd = b.weekly ? CAL_WD[(l.title||'').trim().toLowerCase()] : undefined;
+      l.cards.forEach(c=>{
+        if(c.due){ if(c.due===iso && !c.archived) res.push({c,done:c.completed}); return; }
+        if(wd!==undefined && dow===wd){
+          if(c.repeatWeekly) res.push({c,done:c.completed && wk===curWeek});       // se repite cada semana
+          else if(wk===curWeek && !c.archived) res.push({c,done:c.completed});      // suelta: solo esta semana
+        }
+      });
+    });
+    return res;
+  }
   let cells='';
   ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].forEach(d=>cells+=`<div class="cal-dow">${d}</div>`);
   for(let i=0;i<startDow;i++) cells+='<div></div>';
-  for(let d=1;d<=days;d++){ const iso=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const cs=cardsByDate[iso]||[];
-    cells+=`<div class="cal-cell ${iso===todayISO()?'today':''}"><div class="d">${d}</div>${cs.map(c=>`<div class="cal-card" style="background:${c.completed?'#61bd4f':PRIO[c.priority].c==='#c1c7d0'?'#635fc7':PRIO[c.priority].c}" onclick="openCard('${c.id}')">${esc(c.title)}</div>`).join('')}</div>`;
+  for(let d=1;d<=days;d++){ const iso=isoOf(d);
+    const cs=cellCards(iso);
+    cells+=`<div class="cal-cell ${iso===todayISO()?'today':''}"><div class="d">${d}</div>${cs.map(it=>{const c=it.c;const col=it.done?'#61bd4f':(PRIO[c.priority].c==='#c1c7d0'?'#635fc7':PRIO[c.priority].c);return `<div class="cal-card" style="background:${col}${it.done?';opacity:.7':''}" onclick="openCard('${c.id}')" title="${esc(c.title)}">${it.done?'✓ ':''}${c.repeatWeekly?'🗓️ ':''}${esc(c.title)}</div>`;}).join('')}</div>`;
   }
   root.innerHTML=`<div class="cal">
     <div class="flex" style="margin-bottom:14px"><button onclick="calNav(-1)">‹</button><h3 style="flex:1;text-align:center;margin:0;text-transform:capitalize">${monthName}</h3><button onclick="calNav(1)">›</button><button class="mini" onclick="calToday()">Hoy</button></div>
+    ${b.weekly?'<div class="sub" style="margin-bottom:8px">Tareas del tablero semanal ubicadas en su día · 🗓️ = se repite cada semana.</div>':''}
     <div class="cal-grid">${cells}</div></div>`;
 }
 function calNav(n){ calMonth+=n; if(calMonth<0){calMonth=11;calYear--;} if(calMonth>11){calMonth=0;calYear++;} render(); }
@@ -765,7 +902,25 @@ function renderDashboard(root){
 
 /* ============================ Tableros / menú ============================ */
 function selectBoard(id){ state.activeBoardId=id; persist(); render(); }
-function newBoard(){ const t=prompt('Nombre del nuevo tablero:'); if(!t)return; const id=uid(); state.boards.push({id,title:t,bg:BOARD_BGS[state.boards.length%BOARD_BGS.length],labels:[{id:uid(),name:'Listo',color:'#61bd4f'}],customFields:[],swimlanes:[{id:uid(),name:'General'}],automations:[],lists:[{id:uid(),title:'Por hacer',cards:[]},{id:uid(),title:'En progreso',cards:[]},{id:uid(),title:'Hecho',cards:[]}]}); state.activeBoardId=id; persist(); render(); }
+function newBoardMenu(ev){ ev.stopPropagation();
+  popup(ev,`<h4>Nuevo tablero</h4>
+    <button style="width:100%;justify-content:flex-start;margin-bottom:6px" onclick="closePop();newBoard('normal')">📋 Normal (listas libres)</button>
+    <button style="width:100%;justify-content:flex-start" onclick="closePop();newBoard('weekly')">🗓️ Semanal (Lunes a Viernes)</button>
+    <div class="sub" style="margin-top:8px">El semanal archiva al completar y repone las tareas marcadas cada lunes.</div>`);
+}
+function newBoard(type){
+  const t=prompt('Nombre del nuevo tablero:', type==='weekly'?'Semana del equipo':''); if(!t)return;
+  const id=uid();
+  const base={id,title:t,bg:BOARD_BGS[state.boards.length%BOARD_BGS.length],labels:[{id:uid(),name:'Semanal',color:'#635fc7'},{id:uid(),name:'Urgente',color:'#eb5a46'},{id:uid(),name:'Listo',color:'#61bd4f'}],customFields:[],swimlanes:[{id:uid(),name:'General'}],automations:[],weekly:false};
+  if(type==='weekly'){
+    base.weekly=true; base.lastWeek=currentWeekKey();
+    base.lists=['Lunes','Martes','Miércoles','Jueves','Viernes'].map(d=>({id:uid(),title:d,cards:[]}));
+  } else {
+    base.lists=[{id:uid(),title:'Por hacer',cards:[]},{id:uid(),title:'En progreso',cards:[]},{id:uid(),title:'Hecho',cards:[]}];
+  }
+  state.boards.push(base); state.activeBoardId=id; persist(); render();
+  if(type==='weekly') toast('🗓️ Tablero semanal creado. Marcá tareas como «semanal» para que se repongan.');
+}
 function openBoardMenu(ev){ ev.stopPropagation(); const b=board(); const nArch=b.lists.reduce((n,l)=>n+l.cards.filter(c=>c.archived).length,0);
   popup(ev,`<h4>Tablero: ${esc(b.title)}</h4>
     <button style="width:100%;margin-bottom:6px" onclick="renameBoard()">✎ Renombrar</button>
@@ -799,6 +954,8 @@ function importJSON(e){ const file=e.target.files[0]; if(!file)return; const r=n
 
 /* ============================ Init ============================ */
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closePop(); if(ui.openCard)closeModal(); }});
+// Evita que el navegador abra la imagen si se suelta fuera de una zona válida.
+['dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>{ if(isFileDrag(e)) e.preventDefault(); }));
 
 /* ============================ Auth / arranque ============================ */
 function showAuth(mode){
@@ -827,19 +984,22 @@ async function doAuth(mode){
     boot();
   }catch(e){ err.textContent='No se pudo conectar con el servidor.'; }
 }
-async function logout(){ try{ await fetch('/api/logout',{method:'POST'}); }catch(e){} currentUser=null; state=null; clearInterval(_poll); showAuth(); }
+async function logout(){ if(Store.local) return; try{ await fetch('/api/logout',{method:'POST'}); }catch(e){} currentUser=null; state=null; clearInterval(_poll); showAuth(); }
 
 let _poll=null;
 function startPolling(){ clearInterval(_poll); _poll=setInterval(async()=>{
   if(document.hidden||ui.openCard||document.querySelector('.pop')) return; // no interrumpir edición
-  try{ const r=await fetch('/api/state'); if(!r.ok) return; const j=await r.json(); if((j.rev||0)>Store.rev){ Store.rev=j.rev; state=j.data; render(); toast('🔄 Tablero actualizado'); } }catch(e){}
+  try{ const r=await fetch('/api/state'); if(!r.ok) return; const j=await r.json(); if((j.rev||0)>Store.rev){ Store.rev=j.rev; state=j.data; replenishWeekly(); render(); toast('🔄 Tablero actualizado'); } }catch(e){}
 },15000); }
 
 async function boot(){
-  let me=null;
-  try{ const r=await fetch('/api/me'); if(r.ok) me=await r.json(); }catch(e){}
+  let me=null, backend=true;
+  try{ const r=await fetch('/api/me'); if(r.status===404) backend=false; else if(r.ok) me=await r.json(); }
+  catch(e){ backend=false; }   // sin servidor (doble clic / static): modo local de preview
+  if(!backend) return bootLocal();
   if(!me){ showAuth(); return; }
   currentUser=me;
+  try{ const ru=await fetch('/api/users'); if(ru.ok) members=(await ru.json()).map(x=>x.email); }catch(e){}
   const res=await Store.loadRemote();
   if(!res.auth){ showAuth(); return; }
   state=res.data||seed();
@@ -848,10 +1008,22 @@ async function boot(){
   $('#authRoot').innerHTML='';
   $('#userChip').textContent=me.email;
   $('#userArea').style.display='flex';
+  replenishWeekly();
   checkRecurring();
   render();
   checkDueAutomations();
   startPolling();
+}
+function bootLocal(){
+  Store.local=true; currentUser={email:'local'};
+  let saved=null; try{ saved=JSON.parse(localStorage.getItem('tableropro_local')||'null'); }catch(e){}
+  state=saved||seed();
+  document.body.classList.remove('locked');
+  $('#authRoot').innerHTML='';
+  $('#userChip').textContent='🖥️ Modo local (preview)';
+  const lb=$('#logoutBtn'); if(lb) lb.style.display='none';
+  $('#userArea').style.display='flex';
+  replenishWeekly(); checkRecurring(); render(); checkDueAutomations();
 }
 boot();
 </script>

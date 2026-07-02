@@ -133,6 +133,12 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, { email: sess.email });
       }
 
+      if (u === '/api/users') {
+        if (!sess) return send(res, 401, { error: 'no auth' });
+        const r = await pool.query('SELECT email FROM users ORDER BY email');
+        return send(res, 200, r.rows.map(x => ({ email: x.email })));
+      }
+
       if (u === '/api/state') {
         if (!sess) return send(res, 401, { error: 'no auth' });
         if (req.method === 'GET') {
