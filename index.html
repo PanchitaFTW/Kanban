@@ -89,6 +89,8 @@ main{flex:1;overflow:hidden;position:relative}
 .modal-cover .x{position:absolute;top:10px;right:10px}
 .modal-inner{display:grid;grid-template-columns:1fr 190px;gap:18px;padding:18px 20px 24px}
 .modal h2{margin:0 0 2px;font-size:20px}
+.card-title-input{width:100%;font-family:inherit;font-size:19px;font-weight:700;color:var(--ink);border:none;background:transparent;resize:none;overflow:hidden;line-height:1.3;padding:2px 0;word-break:break-word}
+.card-title-input:focus{outline:none;background:#fff;border-radius:6px;padding:6px 8px}
 .sub{color:var(--muted);font-size:12px;margin-bottom:14px}
 .section{margin-bottom:20px}
 .section h4{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
@@ -610,7 +612,7 @@ function renderModal(){
       ${coverHTML}
       <div class="modal-inner">
         <div class="content">
-          <input style="font-size:19px;font-weight:700;border-color:transparent;background:transparent" value="${esc(c.title)}" onchange="setField('title',this.value)">
+          <textarea id="cardTitle" class="card-title-input" rows="1" onchange="setField('title',this.value)" oninput="autoGrow(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.blur();}">${esc(c.title)}</textarea>
           <div class="sub">en lista <b>${esc(list.title)}</b> · creada ${c.createdAt}</div>
 
           <div class="section">
@@ -658,8 +660,10 @@ function renderModal(){
         </div>
       </div>
     </div></div>`;
+  setTimeout(()=>{ const t=$('#cardTitle'); if(t) autoGrow(t); },0);
   if(ui.editingDesc) setTimeout(initDescEditor,0);
 }
+function autoGrow(el){ el.style.height='auto'; el.style.height=(el.scrollHeight)+'px'; }
 function recurrenceLabel(r){
   if(r.freq==='weekly'&&r.weekdays&&r.weekdays.length){ const names=WD_ORDER.filter(w=>r.weekdays.includes(w)).map(w=>WD_NAMES[w]).join(','); return (r.interval>1?`c/${r.interval}sem `:'')+names; }
   const m={daily:'día',weekly:'sem',monthly:'mes',yearly:'año'}; return `c/${r.interval} ${m[r.freq]}`;
