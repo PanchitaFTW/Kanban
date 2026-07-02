@@ -1,0 +1,15 @@
+{
+  "name": "tableropro",
+  "version": "2.0.0",
+  "description": "Kanban interno tipo Trello con login y tableros compartidos (Postgres).",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  },
+  "private": true
+}
