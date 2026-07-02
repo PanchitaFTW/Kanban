@@ -154,6 +154,14 @@ main{flex:1;overflow:hidden;position:relative}
 label.field{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px;font-weight:600}
 .flex{display:flex;gap:8px;align-items:center}
 .wrap{display:flex;flex-wrap:wrap;gap:6px}
+/* Notificaciones */
+.bellcount{position:absolute;top:-4px;right:-4px;background:#eb5a46;color:#fff;font-size:10px;font-weight:800;min-width:16px;height:16px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+.notif-list{max-height:320px;overflow:auto;margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.notif{padding:8px 10px;border-radius:8px;cursor:pointer;background:#f4f5f7}
+.notif:hover{background:#eae9ff}
+.notif.unread{background:#eef0ff;border-left:3px solid var(--brand)}
+.notif .nt{font-size:13px;line-height:1.35;color:var(--ink)}
+.notif .nd{font-size:11px;color:var(--muted);margin-top:2px}
 /* Descripción + menciones */
 .desc-view{background:#fff;border:2px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;line-height:1.5;cursor:text;min-height:40px;white-space:pre-wrap;word-break:break-word}
 .desc-view:hover{border-color:#c1c7d0}
@@ -192,6 +200,7 @@ body.locked{overflow:hidden}
   <button onclick="document.getElementById('importFile').click()">Import</button>
   <input type="file" id="importFile" accept="application/json" class="hidden" onchange="importJSON(event)">
   <span id="userArea" style="display:none;align-items:center;gap:8px;margin-left:6px">
+    <button id="bellBtn" onclick="openNotifs(event)" title="Notificaciones" style="position:relative">🔔<span id="bellCount" class="bellcount hidden"></span></button>
     <span id="userChip" style="font-size:13px;opacity:.9"></span>
     <button id="logoutBtn" onclick="logout()">Salir</button>
   </span>
@@ -432,6 +441,7 @@ function checkDueAutomations(){
 /* ============================ Render dispatcher ============================ */
 function render(){
   renderBoardSelect();
+  updateBell();
   const b=board();
   $('#boardBg').style.background=b?b.bg:'#333';
   document.querySelectorAll('#viewtabs button').forEach(x=>x.classList.toggle('active',x.dataset.view===ui.view));
@@ -445,6 +455,50 @@ function render(){
 function renderBoardSelect(){
   const s=$('#boardSelect');
   s.innerHTML=state.boards.map(b=>`<option value="${b.id}" ${b.id===state.activeBoardId?'selected':''}>${esc(b.title)}</option>`).join('');
+}
+
+/* ============================ Notificaciones ============================ */
+function myEmail(){ return (currentUser&&currentUser.email||'').toLowerCase(); }
+function notifsFor(email){ return (state&&state.notifications&&state.notifications[(email||'').toLowerCase()])||[]; }
+function addNotif(email,n){
+  if(!email) return false; const k=email.toLowerCase();
+  if(!state.notifications) state.notifications={};
+  const list=state.notifications[k]||(state.notifications[k]=[]);
+  if(n.key && list.some(x=>x.key===n.key)) return false;   // dedup
+  list.unshift(Object.assign({id:uid(),date:todayISO(),read:false},n));
+  if(list.length>200) list.length=200;
+  return true;
+}
+function extractMentions(text){
+  const set=new Set(); const ms=(text||'').match(/@[^\s@]+(?:@[^\s@]+\.[^\s@]+)?/g)||[];
+  ms.forEach(m=>{ const e=m.slice(1).toLowerCase(); if(members.some(u=>u.toLowerCase()===e)) set.add(e); });
+  return set;
+}
+// Vencimiento: avisa a TODO el equipo el día que vence una tarjeta (una vez por tarjeta/día).
+function checkDueNotifications(){
+  if(!members.length) return; const today=todayISO(); let added=false;
+  state.boards.forEach(b=>b.lists.forEach(l=>l.cards.forEach(c=>{
+    if(c.due===today && !c.completed && !c.archived){
+      members.forEach(email=>{ if(addNotif(email,{type:'due',cardId:c.id,boardId:b.id,text:`Vence hoy: "${(c.title||'').slice(0,44)}"`,key:'d:'+c.id+':'+today})) added=true; });
+    }
+  })));
+  if(added) persist();
+}
+function updateBell(){
+  const el=$('#bellCount'); if(!el||!el.classList) return;
+  const n=notifsFor(myEmail()).filter(x=>!x.read).length;
+  if(n>0){ el.textContent=n>9?'9+':String(n); el.classList.remove('hidden'); } else el.classList.add('hidden');
+}
+function openNotifs(ev){ ev.stopPropagation();
+  const list=notifsFor(myEmail());
+  const items=list.length?list.slice(0,40).map(n=>`<div class="notif ${n.read?'':'unread'}" onclick="openNotif('${n.id}')"><div class="nt">${n.type==='mention'?'💬':'📅'} ${esc(n.text)}</div><div class="nd">${n.date}</div></div>`).join(''):'<div class="sub" style="padding:10px 4px">Sin notificaciones todavía.</div>';
+  popup(ev,`<div class="flex" style="justify-content:space-between;align-items:center"><h4 style="margin:0">Notificaciones</h4>${list.some(n=>!n.read)?'<button class="mini" onclick="markAllRead()">Marcar leídas</button>':''}</div><div class="notif-list">${items}</div>`);
+}
+function openNotif(id){ const n=notifsFor(myEmail()).find(x=>x.id===id); if(!n) return; n.read=true; persist(); closePop(); updateBell(); openCardAnywhere(n.cardId); }
+function markAllRead(){ notifsFor(myEmail()).forEach(n=>n.read=true); persist(); closePop(); updateBell(); }
+function openCardAnywhere(cardId){
+  for(const b of state.boards){ for(const l of b.lists){ if(l.cards.some(c=>c.id===cardId)){ state.activeBoardId=b.id; renderBoardSelect(); openCard(cardId); return; } } }
+  toast('La tarjeta ya no existe');
 }
 
 /* ============================ KANBAN ============================ */
@@ -577,7 +631,16 @@ function renderDesc(text){
   return esc(text).replace(/@[^\s@]+(?:@[^\s@]+\.[^\s@]+)?/g, m=>`<span class="mention">${m}</span>`).replace(/\n/g,'<br>');
 }
 function editDesc(){ ui.editingDesc=true; renderModal(); }
-function saveDesc(){ const ta=$('#descBox'); const f=findCard(ui.openCard); if(ta&&f){ f.card.desc=ta.value; persist(); } ui.editingDesc=false; renderModal(); }
+function saveDesc(){
+  const ta=$('#descBox'); const f=findCard(ui.openCard);
+  if(ta&&f){
+    const old=f.card.desc||'', val=ta.value; f.card.desc=val;
+    const before=extractMentions(old), after=extractMentions(val);
+    after.forEach(email=>{ if(!before.has(email) && email!==myEmail()){ addNotif(email,{type:'mention',cardId:f.card.id,boardId:board().id,text:`${currentUser.email} te mencionó en "${(f.card.title||'').slice(0,40)}"`,key:'m:'+f.card.id+':'+email+':'+Date.now()}); } });
+    persist();
+  }
+  ui.editingDesc=false; renderModal(); updateBell();
+}
 function initDescEditor(){
   const ta=$('#descBox'); if(!ta) return;
   ta.focus(); ta.setSelectionRange(ta.value.length,ta.value.length);
@@ -842,27 +905,27 @@ function delAuto(id){ board().automations=board().automations.filter(x=>x.id!==i
 let calMonth=new Date().getMonth(), calYear=new Date().getFullYear();
 const CAL_WD={'lunes':1,'martes':2,'miercoles':3,'miércoles':3,'jueves':4,'viernes':5,'sabado':6,'sábado':6,'domingo':0};
 function renderCalendar(root){
-  const b=board(); const first=new Date(calYear,calMonth,1); const startDow=(first.getDay()+6)%7;
+  const first=new Date(calYear,calMonth,1); const startDow=(first.getDay()+6)%7;
   const days=new Date(calYear,calMonth+1,0).getDate();
   const monthName=first.toLocaleDateString('es',{month:'long',year:'numeric'});
   const curWeek=currentWeekKey();
   const isoOf=d=>`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
   const wkOf=iso=>{const [y,m,dd]=iso.split('-').map(Number);return weekIndex(new Date(Date.UTC(y,m-1,dd)));};
   const dowOf=iso=>{const [y,m,dd]=iso.split('-').map(Number);return new Date(Date.UTC(y,m-1,dd)).getUTCDay();};
-  // Junta las tarjetas que caen en cada fecha: por fecha de vencimiento (due) y,
-  // en tableros semanales, por el día de la columna donde está la tarjeta.
+  // Junta las tarjetas de TODOS los tableros que caen en cada fecha: por vencimiento (due)
+  // y, en tableros semanales, por el día de la columna.
   function cellCards(iso){
     const res=[]; const dow=dowOf(iso), wk=wkOf(iso);
-    b.lists.forEach(l=>{
-      const wd = b.weekly ? CAL_WD[(l.title||'').trim().toLowerCase()] : undefined;
+    state.boards.forEach(bd=>bd.lists.forEach(l=>{
+      const wd = bd.weekly ? CAL_WD[(l.title||'').trim().toLowerCase()] : undefined;
       l.cards.forEach(c=>{
-        if(c.due){ if(c.due===iso && !c.archived) res.push({c,done:c.completed}); return; }
+        if(c.due){ if(c.due===iso && !c.archived) res.push({c,bd,done:c.completed}); return; }
         if(wd!==undefined && dow===wd){
-          if(c.repeatWeekly) res.push({c,done:c.completed && wk===curWeek});       // se repite cada semana
-          else if(wk===curWeek && !c.archived) res.push({c,done:c.completed});      // suelta: solo esta semana
+          if(c.repeatWeekly) res.push({c,bd,done:c.completed && wk===curWeek});       // se repite cada semana
+          else if(wk===curWeek && !c.archived) res.push({c,bd,done:c.completed});      // suelta: solo esta semana
         }
       });
-    });
+    }));
     return res;
   }
   let cells='';
@@ -870,11 +933,11 @@ function renderCalendar(root){
   for(let i=0;i<startDow;i++) cells+='<div></div>';
   for(let d=1;d<=days;d++){ const iso=isoOf(d);
     const cs=cellCards(iso);
-    cells+=`<div class="cal-cell ${iso===todayISO()?'today':''}"><div class="d">${d}</div>${cs.map(it=>{const c=it.c;const col=it.done?'#61bd4f':(PRIO[c.priority].c==='#c1c7d0'?'#635fc7':PRIO[c.priority].c);return `<div class="cal-card" style="background:${col}${it.done?';opacity:.7':''}" onclick="openCard('${c.id}')" title="${esc(c.title)}">${it.done?'✓ ':''}${c.repeatWeekly?'🗓️ ':''}${esc(c.title)}</div>`;}).join('')}</div>`;
+    cells+=`<div class="cal-cell ${iso===todayISO()?'today':''}"><div class="d">${d}</div>${cs.map(it=>{const c=it.c;const col=it.done?'#61bd4f':(PRIO[c.priority].c==='#c1c7d0'?'#635fc7':PRIO[c.priority].c);return `<div class="cal-card" style="background:${col}${it.done?';opacity:.7':''}" onclick="openCardAnywhere('${c.id}')" title="${esc(c.title)} · ${esc(it.bd.title)}">${it.done?'✓ ':''}${c.repeatWeekly?'🗓️ ':''}${esc(c.title)}</div>`;}).join('')}</div>`;
   }
   root.innerHTML=`<div class="cal">
     <div class="flex" style="margin-bottom:14px"><button onclick="calNav(-1)">‹</button><h3 style="flex:1;text-align:center;margin:0;text-transform:capitalize">${monthName}</h3><button onclick="calNav(1)">›</button><button class="mini" onclick="calToday()">Hoy</button></div>
-    ${b.weekly?'<div class="sub" style="margin-bottom:8px">Tareas del tablero semanal ubicadas en su día · 🗓️ = se repite cada semana.</div>':''}
+    <div class="sub" style="margin-bottom:8px">Tareas de todos los tableros ubicadas en su día · 🗓️ = se repite cada semana.</div>
     <div class="cal-grid">${cells}</div></div>`;
 }
 function calNav(n){ calMonth+=n; if(calMonth<0){calMonth=11;calYear--;} if(calMonth>11){calMonth=0;calYear++;} render(); }
@@ -1012,7 +1075,7 @@ async function logout(){ if(Store.local) return; try{ await fetch('/api/logout',
 let _poll=null;
 function startPolling(){ clearInterval(_poll); _poll=setInterval(async()=>{
   if(document.hidden||ui.openCard||document.querySelector('.pop')) return; // no interrumpir edición
-  try{ const r=await fetch('/api/state'); if(!r.ok) return; const j=await r.json(); if((j.rev||0)>Store.rev){ Store.rev=j.rev; state=j.data; replenishWeekly(); render(); toast('🔄 Tablero actualizado'); } }catch(e){}
+  try{ const r=await fetch('/api/state'); if(!r.ok) return; const j=await r.json(); if((j.rev||0)>Store.rev){ Store.rev=j.rev; state=j.data; if(!state.notifications) state.notifications={}; replenishWeekly(); checkDueNotifications(); render(); toast('🔄 Tablero actualizado'); } }catch(e){}
 },15000); }
 
 async function boot(){
@@ -1026,6 +1089,7 @@ async function boot(){
   const res=await Store.loadRemote();
   if(!res.auth){ showAuth(); return; }
   state=res.data||seed();
+  if(!state.notifications) state.notifications={};
   if(!res.data){ await Store._push(); }   // primer arranque: guarda el seed compartido
   document.body.classList.remove('locked');
   $('#authRoot').innerHTML='';
@@ -1033,6 +1097,7 @@ async function boot(){
   $('#userArea').style.display='flex';
   replenishWeekly();
   checkRecurring();
+  checkDueNotifications();
   render();
   checkDueAutomations();
   startPolling();
@@ -1041,6 +1106,7 @@ function bootLocal(){
   Store.local=true; currentUser={email:'local'};
   let saved=null; try{ saved=JSON.parse(localStorage.getItem('tableropro_local')||'null'); }catch(e){}
   state=saved||seed();
+  if(!state.notifications) state.notifications={};
   document.body.classList.remove('locked');
   $('#authRoot').innerHTML='';
   $('#userChip').textContent='🖥️ Modo local (preview)';
