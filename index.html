@@ -154,6 +154,11 @@ main{flex:1;overflow:hidden;position:relative}
 label.field{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px;font-weight:600}
 .flex{display:flex;gap:8px;align-items:center}
 .wrap{display:flex;flex-wrap:wrap;gap:6px}
+/* Log de actividad */
+.log-list{max-height:60vh;overflow:auto;margin-top:12px;display:flex;flex-direction:column;gap:4px}
+.logrow{background:#fff;border-radius:8px;padding:8px 12px;font-size:13px;line-height:1.4;color:var(--ink)}
+.logrow .logwho{font-weight:700;color:var(--brand)}
+.logrow .logwhen{font-size:11px;color:var(--muted);margin-top:2px}
 /* Notificaciones */
 .bellcount{position:absolute;top:-4px;right:-4px;background:#eb5a46;color:#fff;font-size:10px;font-weight:800;min-width:16px;height:16px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 3px}
 .notif-list{max-height:320px;overflow:auto;margin-top:8px;display:flex;flex-direction:column;gap:4px}
@@ -195,6 +200,7 @@ body.locked{overflow:hidden}
   </div>
   <div class="spacer"></div>
   <button onclick="openAutomations()">⚡ Automation</button>
+  <button onclick="openLog()">📋 Actividad</button>
   <button onclick="openBoardMenu(event)">⚙︎</button>
   <button onclick="exportJSON()">Export</button>
   <button onclick="document.getElementById('importFile').click()">Import</button>
@@ -427,7 +433,7 @@ const AUTO_ACTIONS={mark_complete:'Marcar como completada',add_label_done:'Agreg
 function runAutomations(card,list,eventType){
   const b=board();
   b.automations.filter(a=>a.enabled&&a.trigger===eventType).forEach(a=>{
-    if(a.action==='mark_complete'){ card.completed=true; if(board().weekly) card.archived=true; }
+    if(a.action==='mark_complete'){ card.completed=true; card.archived=true; }
     if(a.action==='add_label_done'){ let l=b.labels.find(x=>/listo|done/i.test(x.name)); if(l&&!card.labels.includes(l.id)) card.labels.push(l.id); }
     if(a.action==='set_urgent'){ card.priority='urgent'; }
   });
@@ -499,6 +505,20 @@ function markAllRead(){ notifsFor(myEmail()).forEach(n=>n.read=true); persist();
 function openCardAnywhere(cardId){
   for(const b of state.boards){ for(const l of b.lists){ if(l.cards.some(c=>c.id===cardId)){ state.activeBoardId=b.id; renderBoardSelect(); openCard(cardId); return; } } }
   toast('La tarjeta ya no existe');
+}
+
+/* ============================ Log de actividad (7 días) ============================ */
+function pruneLog(){ if(!state.log) { state.log=[]; return; } const cut=Date.now()-7*86400000; state.log=state.log.filter(e=>e.ts>=cut); if(state.log.length>500) state.log.length=500; }
+function logEvent(text){ if(!state.log) state.log=[]; state.log.unshift({id:uid(),ts:Date.now(),user:(currentUser&&currentUser.email)||'local',text}); pruneLog(); }
+function fmtLogTs(ts){ try{ return new Date(ts).toLocaleString('es',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+function openLog(){
+  pruneLog();
+  const items=(state.log||[]).slice(0,300).map(e=>`<div class="logrow"><span class="logwho">${esc(e.user)}</span> ${esc(e.text)}<div class="logwhen">${fmtLogTs(e.ts)}</div></div>`).join('')||'<div class="sub" style="padding:10px 4px">Sin actividad todavía.</div>';
+  $('#modalRoot').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal" style="max-width:600px"><div style="padding:20px 24px">
+    <h2>📋 Actividad</h2><div class="sub">Últimos 7 días · lo más reciente primero</div>
+    <div class="log-list">${items}</div>
+    <div style="text-align:right;margin-top:16px"><button class="primary" onclick="closeModal()">Cerrar</button></div>
+  </div></div></div>`;
 }
 
 /* ============================ KANBAN ============================ */
@@ -581,6 +601,7 @@ function quickAddCard(listId){
   const title=prompt('Título de la tarjeta:'); if(!title) return;
   const b=board(); const l=b.lists.find(x=>x.id===listId);
   l.cards.push({id:uid(),title,desc:'',labels:[],priority:'none',due:'',start:'',checklists:[],cover:null,images:[],cf:{},recurrence:null,swimlane:b.swimlanes[0]?.id||'',completed:false,archived:false,createdAt:todayISO()});
+  logEvent('creó "'+title+'" en '+b.title);
   persist();render();
 }
 function addList(){ const t=prompt('Nombre de la lista:'); if(!t) return; board().lists.push({id:uid(),title:t,cards:[]}); persist();render(); }
@@ -618,6 +639,7 @@ function commitMove(zone){
   if(idx<0) tgtList.cards.push(card); else tgtList.cards.splice(idx,0,card);
   // Automation: mover a lista tipo "Hecho/Done"
   if(/hecho|done|listo|complet/i.test(tgtList.title)) runAutomations(card,tgtList,'moved_to_done');
+  if(srcList.id!==tgtList.id) logEvent('movió "'+card.title+'" a '+tgtList.title);
   persist();render();
 }
 
@@ -764,25 +786,26 @@ function addCheckItem(clId){ const t=prompt('Nuevo ítem:'); if(!t)return; mutat
 function toggleCheck(clId,iId){ mutate((c,l)=>{ const it=c.checklists.find(x=>x.id===clId).items.find(y=>y.id===iId); it.done=!it.done;
   // auto-completar si todos los ítems están hechos
   const all=c.checklists.length&&c.checklists.every(cl=>cl.items.length&&cl.items.every(i=>i.done));
-  if(all&&!c.completed){ if(confirm('Todos los ítems completos. ¿Marcar tarjeta como completada?')){ c.completed=true; confetti(); if(board().weekly) c.archived=true; } }
+  if(all&&!c.completed){ if(confirm('Todos los ítems completos. ¿Marcar tarjeta como completada?')){ c.completed=true; c.archived=true; confetti(); logEvent('completó "'+c.title+'" en '+board().title); } }
 }); }
 function delCheckItem(clId,iId){ mutate(c=>{const cl=c.checklists.find(x=>x.id===clId); cl.items=cl.items.filter(y=>y.id!==iId);}); }
 function toggleComplete(){
   const f=findCard(ui.openCard); if(!f)return; const c=f.card;
   c.completed=!c.completed;
-  if(c.completed){ confetti(); if(board().weekly){ c.archived=true; persist(); toast('✅ Completada y archivada'); closeModal(); return; } }
-  persist(); renderModal();
+  if(c.completed){ confetti(); c.archived=true; logEvent('completó "'+c.title+'" en '+board().title); persist(); toast('✅ Completada y archivada'); closeModal(); return; }
+  c.archived=false; logEvent('reabrió "'+c.title+'"'); persist(); renderModal();
 }
 function completeCard(id){
   const f=findCard(id); if(!f)return; const c=f.card;
   c.completed=!c.completed;
-  if(c.completed){ confetti(); if(board().weekly){ c.archived=true; toast('✅ Completada y archivada'); } }
+  if(c.completed){ confetti(); c.archived=true; logEvent('completó "'+c.title+'" en '+board().title); toast('✅ Completada y archivada'); }
+  else { c.archived=false; logEvent('reabrió "'+c.title+'"'); }
   persist(); render();
 }
 function toggleRepeatWeekly(){ mutate(c=>c.repeatWeekly=!c.repeatWeekly); }
-function toggleArchive(){ mutate(c=>c.archived=!c.archived); toast('Tarjeta archivada'); closeModal(); }
+function toggleArchive(){ const f=findCard(ui.openCard); if(!f)return; f.card.archived=!f.card.archived; logEvent((f.card.archived?'archivó "':'desarchivó "')+f.card.title+'"'); persist(); toast(f.card.archived?'Tarjeta archivada':'Tarjeta restaurada'); closeModal(); }
 function duplicateCard(){ const f=findCard(ui.openCard); const cl=JSON.parse(JSON.stringify(f.card)); cl.id=uid(); cl.title+=' (copia)'; f.list.cards.push(cl); persist(); toast('Tarjeta duplicada'); }
-function deleteCard(){ if(!confirm('¿Eliminar tarjeta?'))return; const f=findCard(ui.openCard); f.list.cards=f.list.cards.filter(c=>c.id!==ui.openCard); persist(); closeModal(); }
+function deleteCard(){ if(!confirm('¿Eliminar tarjeta?'))return; const f=findCard(ui.openCard); logEvent('eliminó "'+f.card.title+'"'); f.list.cards=f.list.cards.filter(c=>c.id!==ui.openCard); persist(); closeModal(); }
 
 // Lee archivos de imagen y los adjunta a la tarjeta (cover si no tiene).
 function attachImages(fileList, card, after){
@@ -850,7 +873,7 @@ function pickSwimlane(ev){ ev.stopPropagation(); const b=board(); const c=findCa
 function moveCard(ev){ ev.stopPropagation(); const b=board();
   popup(ev,`<h4>Mover a lista</h4>${b.lists.map(l=>`<button style="width:100%;justify-content:flex-start;margin-bottom:4px" onclick="doMove('${l.id}')">${esc(l.title)}</button>`).join('')}`);
 }
-function doMove(listId){ const f=findCard(ui.openCard); f.list.cards=f.list.cards.filter(c=>c.id!==ui.openCard); const tgt=board().lists.find(l=>l.id===listId); tgt.cards.push(f.card); if(/hecho|done|listo|complet/i.test(tgt.title))runAutomations(f.card,tgt,'moved_to_done'); persist(); closePop(); renderModal(); }
+function doMove(listId){ const f=findCard(ui.openCard); const src=f.list; f.list.cards=f.list.cards.filter(c=>c.id!==ui.openCard); const tgt=board().lists.find(l=>l.id===listId); tgt.cards.push(f.card); if(/hecho|done|listo|complet/i.test(tgt.title))runAutomations(f.card,tgt,'moved_to_done'); if(src.id!==tgt.id) logEvent('movió "'+f.card.title+'" a '+tgt.title); persist(); closePop(); renderModal(); }
 
 /* ============================ Etiquetas / Campos / Carriles ============================ */
 function manageLabels(ev){ ev.stopPropagation(); const b=board();
@@ -1004,7 +1027,7 @@ function newBoard(type){
   } else {
     base.lists=[{id:uid(),title:'Por hacer',cards:[]},{id:uid(),title:'En progreso',cards:[]},{id:uid(),title:'Hecho',cards:[]}];
   }
-  state.boards.push(base); state.activeBoardId=id; persist(); render();
+  state.boards.push(base); state.activeBoardId=id; logEvent('creó el tablero "'+t+'"'); persist(); render();
   if(type==='weekly') toast('🗓️ Tablero semanal creado. Marcá tareas como «semanal» para que se repongan.');
 }
 function openBoardMenu(ev){ ev.stopPropagation(); const b=board(); const nArch=b.lists.reduce((n,l)=>n+l.cards.filter(c=>c.archived).length,0);
@@ -1025,8 +1048,8 @@ function openArchived(){
     <div style="text-align:right;margin-top:16px"><button class="primary" onclick="closeModal()">Cerrar</button></div>
   </div></div></div>`;
 }
-function restoreCard(id){ const f=findCard(id); if(f){f.card.archived=false; persist();} openArchived(); }
-function removeArchived(id){ if(!confirm('¿Eliminar definitivamente?'))return; const f=findCard(id); if(f){ f.list.cards=f.list.cards.filter(c=>c.id!==id); persist(); } openArchived(); }
+function restoreCard(id){ const f=findCard(id); if(f){f.card.archived=false; logEvent('restauró "'+f.card.title+'"'); persist();} openArchived(); }
+function removeArchived(id){ if(!confirm('¿Eliminar definitivamente?'))return; const f=findCard(id); if(f){ logEvent('eliminó "'+f.card.title+'"'); f.list.cards=f.list.cards.filter(c=>c.id!==id); persist(); } openArchived(); }
 function renameBoard(){ const t=prompt('Nuevo nombre:',board().title); if(t){board().title=t;persist();closePop();render();} }
 function changeBg(ev){ ev.stopPropagation();
   popup(ev,`<h4>Fondo del tablero</h4><div class="color-grid">${BOARD_BGS.map(bg=>`<div style="background:${bg}" onclick="board().bg='${bg}';persist();closePop();render()"></div>`).join('')}</div>`);
@@ -1075,7 +1098,7 @@ async function logout(){ if(Store.local) return; try{ await fetch('/api/logout',
 let _poll=null;
 function startPolling(){ clearInterval(_poll); _poll=setInterval(async()=>{
   if(document.hidden||ui.openCard||document.querySelector('.pop')) return; // no interrumpir edición
-  try{ const r=await fetch('/api/state'); if(!r.ok) return; const j=await r.json(); if((j.rev||0)>Store.rev){ Store.rev=j.rev; state=j.data; if(!state.notifications) state.notifications={}; replenishWeekly(); checkDueNotifications(); render(); toast('🔄 Tablero actualizado'); } }catch(e){}
+  try{ const r=await fetch('/api/state'); if(!r.ok) return; const j=await r.json(); if((j.rev||0)>Store.rev){ Store.rev=j.rev; state=j.data; if(!state.notifications) state.notifications={}; if(!state.log) state.log=[]; pruneLog(); replenishWeekly(); checkDueNotifications(); render(); toast('🔄 Tablero actualizado'); } }catch(e){}
 },15000); }
 
 async function boot(){
@@ -1090,6 +1113,7 @@ async function boot(){
   if(!res.auth){ showAuth(); return; }
   state=res.data||seed();
   if(!state.notifications) state.notifications={};
+  if(!state.log) state.log=[]; pruneLog();
   if(!res.data){ await Store._push(); }   // primer arranque: guarda el seed compartido
   document.body.classList.remove('locked');
   $('#authRoot').innerHTML='';
@@ -1107,6 +1131,7 @@ function bootLocal(){
   let saved=null; try{ saved=JSON.parse(localStorage.getItem('tableropro_local')||'null'); }catch(e){}
   state=saved||seed();
   if(!state.notifications) state.notifications={};
+  if(!state.log) state.log=[]; pruneLog();
   document.body.classList.remove('locked');
   $('#authRoot').innerHTML='';
   $('#userChip').textContent='🖥️ Modo local (preview)';
