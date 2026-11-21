@@ -439,13 +439,20 @@ code{font-family:var(--mono);font-size:.86em;background:rgba(15,42,46,.07);paddi
     <span class="tag">Lo que suma la publicidad</span>
     <h2>Los avisos dicen dónde está el problema.</h2>
     <p class="lead">Product Ads informa impresiones y clics: cuánta gente vio la publicación y no entró. El precio se ve en el listado, así que afecta el clic. Cruzando clics y ventas sabemos qué tocar antes de tocar nada.</p>
+    <div class="stats" style="border-top-color:var(--ink);margin-top:28px">
+      <div class="stat"><b>32,0 M</b><span>impresiones de avisos en 31 días</span></div>
+      <div class="stat"><b>0,23%</b><span>clics sobre impresiones</span></div>
+      <div class="stat"><b>6,95%</b><span>ventas sobre clics</span></div>
+      <div class="stat"><b>$5,86 M</b><span>de gasto, ACOS 3,9%</span></div>
+      <div class="stat"><b>5.216</b><span>unidades vendidas por avisos, contra 4.838 sin aviso</span></div>
+    </div>
     <div class="quadwrap">
       <div class="ax-y">Ventas sobre clics →</div>
       <div class="quad">
         <div><small>Pocos clics · muchas ventas</small><b>No entran, pero el que entra compra</b><p>El problema está en lo que se ve en el listado: precio, foto o título.</p><span class="act">Probar un paso de precio</span></div>
-        <div class="go"><small>Muchos clics · muchas ventas</small><b>Entran y compran</b><p>Hay aire. El producto se vende solo a este precio.</p><span class="act">Subir precio o escalar el aviso</span></div>
-        <div class="stop"><small>Pocos clics · pocas ventas</small><b>Ni entran ni compran</b><p>No hay demanda para esta publicación así como está.</p><span class="act">Cortar el aviso · liquidar</span></div>
-        <div><small>Muchos clics · pocas ventas</small><b>Entran y no compran</b><p>El precio no espantó. El problema está adentro: ficha, cuotas o envío.</p><span class="act">No bajar · revisar la publicación</span></div>
+        <div class="go"><small>Muchos clics · muchas ventas</small><b>Entran y compran</b><p>Hay aire. El producto se vende solo a este precio.</p><p class="num" style="font-size:.8rem;margin-top:10px;color:var(--ink)">Real: pack x10 spot + dicroica cálida, 0,52% de clics y 25,2% de ventas.</p><span class="act">Subir precio o escalar el aviso</span></div>
+        <div class="stop"><small>Pocos clics · pocas ventas</small><b>Ni entran ni compran</b><p>No hay demanda para esta publicación así como está.</p><p class="num" style="font-size:.8rem;margin-top:10px;color:var(--ink)">Real: rack 5 niveles, $94.284 de aviso para vender 3 unidades.</p><span class="act">Cortar el aviso · liquidar</span></div>
+        <div><small>Muchos clics · pocas ventas</small><b>Entran y no compran</b><p>El precio no espantó. El problema está adentro: ficha, cuotas o envío.</p><p class="num" style="font-size:.8rem;margin-top:10px;color:var(--ink)">Real: colgante 3 luces blanco, 0,78% de clics y 1,5% de ventas.</p><span class="act">No bajar · revisar la publicación</span></div>
       </div>
       <div class="ax-x">Clics sobre impresiones →</div>
     </div>
@@ -454,7 +461,7 @@ code{font-family:var(--mono);font-size:.86em;background:rgba(15,42,46,.07);paddi
       <div class="panel"><h3>El piso incluye la publicidad</h3><p>Si un SKU vende la mayoría por avisos, ese gasto es parte de su costo. Sin contarlo podemos estar sobre el piso y perdiendo plata.</p></div>
       <div class="panel"><h3>Mide mejor cada cambio</h3><p>El tráfico pago es más parejo que el orgánico. La conversión de los clics pagos antes y después de un cambio de precio es una lectura más limpia.</p></div>
     </div>
-    <p class="cap" style="margin-top:14px">Límites: solo cubre publicaciones con aviso, la venta se atribuye días después del clic y quien entra por un aviso no se comporta igual que quien llega buscando. Con stock corto, primero se corta el aviso y después se sube el precio.</p>
+    <p class="cap" style="margin-top:14px">Límites: solo cubre publicaciones con aviso, la venta se atribuye días después del clic y quien entra por un aviso no se comporta igual que quien llega buscando. Las métricas vienen por día, no por hora. Con stock corto, primero se corta el aviso y después se sube el precio.</p>
   </div>
 </section>
 
@@ -651,7 +658,7 @@ code{font-family:var(--mono);font-size:.86em;background:rgba(15,42,46,.07);paddi
 <footer>
   <div class="wrap">
     <p>Datos: API de MercadoLibre, cuenta MILER, ventas pagas del 21/10 al 20/11/2026. Visitas y conversión medidas sobre las 2.459 publicaciones que vendieron al menos una unidad en el período, que incluye la semana de ofertas del 2 al 8/11.</p>
-    <p>Página de trabajo interna. El ejemplo de escalones usa una comisión de 15% como supuesto y los cargos fijos vigentes: $1.330 hasta $14.999, $2.740 hasta $23.999 y $3.320 hasta $32.999. Los topes y porcentajes de banda son puntos de partida para discutir.</p>
+    <p>Página de trabajo interna. Datos de publicidad: API de Product Ads, cuenta MILER, mismo período; las unidades con y sin aviso son de las publicaciones que tienen aviso. El ejemplo de escalones usa una comisión de 15% como supuesto y los cargos fijos vigentes: $1.330 hasta $14.999, $2.740 hasta $23.999 y $3.320 hasta $32.999. Los topes y porcentajes de banda son puntos de partida para discutir.</p>
   </div>
 </footer>
 
