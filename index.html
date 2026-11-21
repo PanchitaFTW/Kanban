@@ -240,6 +240,23 @@ tbody tr:hover{background:var(--card)}
 section h2{position:relative}
 section>.wrap>.tag::before{content:"";display:inline-block;width:26px;height:8px;margin-right:10px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);background:var(--band);vertical-align:middle}
 
+
+.quadwrap{display:grid;grid-template-columns:34px 1fr;gap:10px;margin-top:32px}
+.quadwrap .ax-y{writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;font-family:var(--mono);font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft)}
+.quadwrap .ax-x{grid-column:2;text-align:center;font-family:var(--mono);font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft)}
+.quad{display:grid;grid-template-columns:1fr 1fr;gap:0;border:2px solid var(--ink);border-radius:6px;overflow:hidden;box-shadow:8px 8px 0 var(--ink)}
+.quad>div{padding:20px;background:var(--card);border-right:1px solid var(--line);border-bottom:1px solid var(--line);transition:background .3s}
+.quad>div:nth-child(2n){border-right:0}
+.quad>div:nth-child(n+3){border-bottom:0}
+.quad>div:hover{background:#fff}
+.quad small{font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
+.quad b{display:block;font-family:var(--display);font-size:1.3rem;font-weight:800;line-height:1.1;margin:6px 0 8px}
+.quad p{font-size:.93rem;color:var(--ink-soft)}
+.quad .act{display:inline-block;margin-top:12px;font-family:var(--mono);font-size:.78rem;padding:4px 9px;border-radius:3px;background:var(--ink);color:var(--paper)}
+.quad .go{background:linear-gradient(160deg,#D2EEE5,var(--band))}
+.quad .go:hover{background:var(--band)}
+.quad .stop .act{background:var(--signal)}
+@media (max-width:640px){.quad{grid-template-columns:1fr}.quad>div{border-right:0;border-bottom:1px solid var(--line)!important}.quad>div:last-child{border-bottom:0!important}.quadwrap{grid-template-columns:1fr}.quadwrap .ax-y{display:none}.quadwrap .ax-x{grid-column:1}}
 /* Implementación */
 .hero2{padding:56px 0 48px}
 .hero2 h1{font-size:clamp(2.3rem,6vw,4.6rem);max-width:15ch}
@@ -368,7 +385,7 @@ code{font-family:var(--mono);font-size:.86em;background:rgba(15,42,46,.07);paddi
     <h2>Tres números por producto.</h2>
     <p class="lead">El sistema solo puede pararse entre el piso y el techo. La banda la definen personas; el sistema elige dónde pararse adentro.</p>
     <div class="three">
-      <div><b>Piso</b><p>El precio más bajo permitido. Nunca se cruza. Sale del costo con IVA, comisión, cargo fijo, envío, IIBB y un margen mínimo.</p></div>
+      <div><b>Piso</b><p>El precio más bajo permitido. Nunca se cruza. Sale del costo con IVA, comisión, cargo fijo, envío, IIBB, la publicidad del SKU y un margen mínimo.</p></div>
       <div class="mid"><b>Ancla</b><p>El precio normal, el de hoy. Si no pasa nada, el producto vuelve acá.</p></div>
       <div><b>Techo</b><p>El precio más alto permitido. Un porcentaje sobre el ancla o el precio de la competencia, lo que sea menor.</p></div>
     </div>
@@ -414,6 +431,30 @@ code{font-family:var(--mono);font-size:.86em;background:rgba(15,42,46,.07);paddi
       <p><b>Muchas visitas y poca conversión no siempre es el precio.</b> Puede ser la foto, el título o las cuotas. El sistema baja un paso y mide. Si la conversión no reacciona, vuelve al precio anterior y marca la publicación para que la revise una persona. No sigue bajando.</p>
       <p><b>El horario es la señal más débil.</b> Lo usamos primero para decidir cuándo aplicar los cambios, y probamos precio por hora solo en 10 a 20 productos de mucha rotación.</p>
     </div>
+  </div>
+</section>
+
+<section id="publicidad">
+  <div class="wrap">
+    <span class="tag">Lo que suma la publicidad</span>
+    <h2>Los avisos dicen dónde está el problema.</h2>
+    <p class="lead">Product Ads informa impresiones y clics: cuánta gente vio la publicación y no entró. El precio se ve en el listado, así que afecta el clic. Cruzando clics y ventas sabemos qué tocar antes de tocar nada.</p>
+    <div class="quadwrap">
+      <div class="ax-y">Ventas sobre clics →</div>
+      <div class="quad">
+        <div><small>Pocos clics · muchas ventas</small><b>No entran, pero el que entra compra</b><p>El problema está en lo que se ve en el listado: precio, foto o título.</p><span class="act">Probar un paso de precio</span></div>
+        <div class="go"><small>Muchos clics · muchas ventas</small><b>Entran y compran</b><p>Hay aire. El producto se vende solo a este precio.</p><span class="act">Subir precio o escalar el aviso</span></div>
+        <div class="stop"><small>Pocos clics · pocas ventas</small><b>Ni entran ni compran</b><p>No hay demanda para esta publicación así como está.</p><span class="act">Cortar el aviso · liquidar</span></div>
+        <div><small>Muchos clics · pocas ventas</small><b>Entran y no compran</b><p>El precio no espantó. El problema está adentro: ficha, cuotas o envío.</p><span class="act">No bajar · revisar la publicación</span></div>
+      </div>
+      <div class="ax-x">Clics sobre impresiones →</div>
+    </div>
+    <div class="grid3">
+      <div class="panel"><h3>Dos perillas para lo mismo</h3><p>Un SKU lento se mueve bajando el precio o comprando tráfico. La baja se paga en todas las unidades; el aviso, solo en las que vende. El sistema elige la más barata por unidad extra.</p></div>
+      <div class="panel"><h3>El piso incluye la publicidad</h3><p>Si un SKU vende la mayoría por avisos, ese gasto es parte de su costo. Sin contarlo podemos estar sobre el piso y perdiendo plata.</p></div>
+      <div class="panel"><h3>Mide mejor cada cambio</h3><p>El tráfico pago es más parejo que el orgánico. La conversión de los clics pagos antes y después de un cambio de precio es una lectura más limpia.</p></div>
+    </div>
+    <p class="cap" style="margin-top:14px">Límites: solo cubre publicaciones con aviso, la venta se atribuye días después del clic y quien entra por un aviso no se comporta igual que quien llega buscando. Con stock corto, primero se corta el aviso y después se sube el precio.</p>
   </div>
 </section>
 
@@ -542,7 +583,7 @@ code{font-family:var(--mono);font-size:.86em;background:rgba(15,42,46,.07);paddi
           <tr><td>Stock y estado de la publicación</td><td><span class="how hook">Aviso</span> <code>items</code></td><td>Al instante</td></tr>
           <tr><td>Ganamos o perdemos el catálogo</td><td><span class="how hook">Aviso</span> <code>catalog_item_competition_status</code>, y después consulta a <code>price_to_win</code></td><td>Cuando cambia</td></tr>
           <tr><td>Visitas</td><td><span class="how poll">Consulta</span> de a una publicación</td><td>1 a 4 veces por día</td></tr>
-          <tr><td>Publicidad: gasto y ACOS</td><td><span class="how poll">Consulta</span></td><td>1 vez por día</td></tr>
+          <tr><td>Publicidad: impresiones, clics, ventas y gasto</td><td><span class="how poll">Consulta</span></td><td>1 vez por día</td></tr>
           <tr><td>Promociones activas</td><td><span class="how poll">Consulta</span> antes de cada cambio</td><td>En el momento</td></tr>
         </tbody>
       </table>
@@ -572,7 +613,7 @@ code{font-family:var(--mono);font-size:.86em;background:rgba(15,42,46,.07);paddi
     <span class="tag">Modelo de datos, borrador</span>
     <h2>Cuatro tablas nuevas en el ERP.</h2>
     <div class="models">
-      <div class="model"><b>BandaPrecio</b>sku<br>costo<br>piso · ancla · techo<br>grupo<br>habilitado<br><i>// una por SKU, no por publicación</i></div>
+      <div class="model"><b>BandaPrecio</b>sku<br>costo · costoPublicidad<br>piso · ancla · techo<br>grupo<br>habilitado<br><i>// una por SKU, no por publicación</i></div>
       <div class="model"><b>Senal</b>sku<br>tipo<br>valor<br>fecha<br><i>// stock, conversión, competencia…</i></div>
       <div class="model"><b>Propuesta</b>sku<br>precioActual → precioNuevo<br>motivo<br>estado<br><i>// pendiente, aprobada, rechazada</i></div>
       <div class="model"><b>CambioPrecio</b>cuenta · mla<br>antes → despues<br>propuestaId<br>fecha<br><i>// el registro que no se borra</i></div>
@@ -805,7 +846,7 @@ code{font-family:var(--mono);font-size:.86em;background:rgba(15,42,46,.07);paddi
       ['Cobertura de stock',6,'Días de stock al ritmo de venta actual.','Quedan pocos días y no hay reposición cerca.','Sobran meses de stock.'],
       ['Conversión',5,'Ventas sobre visitas, contra el promedio propio del producto.','Convierte bastante más que su promedio.','Tiene visitas de sobra y convierte menos que su promedio.'],
       ['Competencia',4,'Precio para ganar en catálogo y precio de publicaciones similares.','Ganamos por mucha diferencia o el rival se quedó sin stock.','Perdemos por poco y el precio para ganar está sobre el piso.'],
-      ['Publicidad',3,'Gasto y ACOS del anuncio.','El anuncio rinde bien.','Pagamos clics que no compran.'],
+      ['Publicidad',3,'Impresiones, clics, conversión y ACOS del anuncio.','El anuncio rinde bien.','Pagamos clics que no compran.'],
       ['Calendario',2,'Día de la semana, quincena, eventos.','Días fuertes, de lunes a miércoles.','Días flojos, solo si se comprueba que bajar trae ventas.'],
       ['Horario',1,'Hora del día.','Franja de 9 a 15 h.','Madrugada.']
     ];
@@ -866,7 +907,7 @@ code{font-family:var(--mono);font-size:.86em;background:rgba(15,42,46,.07);paddi
   function arm(root){
     if(REDUCED||!('IntersectionObserver' in window))return;
     if(!io)io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.remove('rv-pre');io.unobserve(e.target);}});},{rootMargin:'0px 0px -8% 0px'});
-    Array.prototype.forEach.call(root.querySelectorAll('section h2,section .lead,.panel,.rows,.three,.sim,.signals,.note,.tablebox,.rules,.timeline,.steps,.model'),function(n){
+    Array.prototype.forEach.call(root.querySelectorAll('section h2,section .lead,.panel,.quadwrap,.rows,.three,.sim,.signals,.note,.tablebox,.rules,.timeline,.steps,.model'),function(n){
       if(n.classList.contains('rv'))return;n.classList.add('rv');
       var r=n.getBoundingClientRect();
       if(r.top>window.innerHeight*0.92){n.classList.add('rv-pre');io.observe(n);}
